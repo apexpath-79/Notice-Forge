@@ -37,7 +37,13 @@ export async function POST(req: Request) {
     const session = event.data.object as Stripe.Checkout.Session;
     const meta = (session.metadata as Record<string, string>) || {};
 
-    const recipient = 'apexpath.nodes@gmail.com';
+    // Dynamic recipient: sends to customer/claimant email entered, with fallback to your personal email
+    const recipient =
+      meta.claimantEmail ||
+      session.customer_details?.email ||
+      'gregorystewart1779@gmail.com';
+
+    console.log('Dispatching compliance bundle to verified recipient:', recipient);
 
     try {
       const fontRegular = StandardFonts.Helvetica;
@@ -91,7 +97,6 @@ export async function POST(req: Request) {
         const labelW = 160;
         const rowH = 18;
 
-        // Section Banner
         page.drawRectangle({
           x: startX,
           y: curY - rowH,
@@ -108,7 +113,6 @@ export async function POST(req: Request) {
         });
         curY -= rowH;
 
-        // Rows
         for (let i = 0; i < rows.length; i++) {
           const [label, val] = rows[i];
           const bg = i % 2 === 0 ? cLightBg : cWhite;
@@ -123,7 +127,6 @@ export async function POST(req: Request) {
             borderColor: cLine,
           });
 
-          // Label Cell
           page.drawText(label, {
             x: startX + 8,
             y: curY - 13,
@@ -132,7 +135,6 @@ export async function POST(req: Request) {
             color: cSlate,
           });
 
-          // Vertical divider line
           page.drawLine({
             start: { x: startX + labelW, y: curY },
             end: { x: startX + labelW, y: curY - rowH },
@@ -140,7 +142,6 @@ export async function POST(req: Request) {
             color: cLine,
           });
 
-          // Value Cell
           page.drawText(String(val || 'N/A'), {
             x: startX + labelW + 10,
             y: curY - 13,
@@ -166,7 +167,6 @@ export async function POST(req: Request) {
 
       drawDocumentFrame(page1, 612, 792);
 
-      // Header Block
       page1.drawRectangle({ x: 40, y: 710, width: 532, height: 42, color: cNavy });
       page1.drawText('CALIFORNIA 20-DAY PRELIMINARY NOTICE', {
         x: 52, y: 728, size: 13, font: fBold1, color: cGold,
@@ -175,7 +175,6 @@ export async function POST(req: Request) {
         x: 52, y: 716, size: 7.5, font: fReg1, color: cWhite,
       });
 
-      // Statutory Reference
       page1.drawText('Prepared in accordance with California Civil Code §§ 8200–8216 and §§ 9200–9214', {
         x: 40, y: 694, size: 7.5, font: fObl1, color: cSlate,
       });
@@ -206,7 +205,6 @@ export async function POST(req: Request) {
         ['Scope of Labor & Materials', meta.workDescription || 'Stick-framing, structural carpentry, and statutory improvements'],
       ], fBold1, fReg1, cNavy);
 
-      // Statutory Warning Box
       page1.drawRectangle({
         x: 40,
         y: yPos1 - 72,
@@ -228,7 +226,6 @@ export async function POST(req: Request) {
         x: 48, y: yPos1 - 26, size: 6.8, font: fReg1, color: cDark, maxWidth: 516, lineHeight: 9,
       });
 
-      // Signature Row
       page1.drawText('EXECUTED BY CLAIMANT / AUTHORIZED AGENT:', {
         x: 40, y: yPos1 - 92, size: 7.5, font: fBold1, color: cSlate,
       });
@@ -278,7 +275,6 @@ export async function POST(req: Request) {
         ['USPS Tracking Barcode (Fill in)', '____________________________________________________'],
       ], fBold2, fReg2, cNavy);
 
-      // Perjury Box
       page2.drawRectangle({
         x: 40,
         y: yPos2 - 80,
@@ -380,7 +376,6 @@ export async function POST(req: Request) {
 
       drawDocumentFrame(page4, 612, 792);
 
-      // Official County Recorder Recording Top-Right Box (3" x 3")
       page4.drawRectangle({
         x: 350,
         y: 645,
@@ -401,7 +396,6 @@ export async function POST(req: Request) {
         x: 360, y: 700, size: 7, font: fBold4, color: cSlate, lineHeight: 10,
       });
 
-      // Instrument Title
       page4.drawRectangle({ x: 40, y: 615, width: 532, height: 26, color: cNavy });
       page4.drawText('CLAIM OF MECHANICS LIEN', {
         x: 200, y: 624, size: 12, font: fBold4, color: cGold,
@@ -416,7 +410,6 @@ export async function POST(req: Request) {
         ['Total Balance Claimed Due', meta.estimatedAmount ? `$${meta.estimatedAmount}` : '$150,000.00'],
       ], fBold4, fReg4, cNavy);
 
-      // Verification Box
       page4.drawText('CLAIMANT STATUTORY VERIFICATION:', {
         x: 40, y: yPos4 - 10, size: 8, font: fBold4, color: cNavy,
       });
@@ -430,7 +423,6 @@ export async function POST(req: Request) {
         x: 40, y: yPos4 - 54, size: 8, font: fBold4, color: cCharcoal,
       });
 
-      // California Statutory Notary Jurat Box (Civ. Code § 1189)
       const juratY = yPos4 - 70;
       page4.drawRectangle({
         x: 40,
@@ -458,7 +450,6 @@ export async function POST(req: Request) {
         x: 48, y: juratY - 50, size: 7, font: fReg4, color: cDark, maxWidth: 360, lineHeight: 10,
       });
 
-      // Stamp area box
       page4.drawRectangle({
         x: 425,
         y: juratY - 88,
@@ -474,10 +465,10 @@ export async function POST(req: Request) {
       const pdfBytes4 = await doc4.save();
 
       // =========================================================================
-      // DISPATCH ALL 4 HIGH-CONVERSION DOCUMENTS VIA RESEND
+      // DISPATCH ALL 4 HIGH-FIDELITY INSTRUMENTS FROM VERIFIED DOMAIN
       // =========================================================================
       const { data, error } = await resend.emails.send({
-        from: 'ApexPath <onboarding@resend.dev>',
+        from: 'ApexPath Compliance <notices@apexpathsystems.com>',
         to: recipient,
         subject: 'Your Official California Statutory Notice Packet — ApexPath',
         html: `
