@@ -222,4 +222,11 @@ export async function POST(req: Request) {
       }
 
       console.log('Resend email sent successfully:', data);
-    } catch (
+    } catch (err: any) {
+      console.error('Fatal error during PDF generation or email dispatch:', err);
+      return NextResponse.json({ error: 'Processing failed', message: err.message }, { status: 500 });
+    }
+  }
+
+  return NextResponse.json({ received: true });
+}
