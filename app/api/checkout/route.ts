@@ -82,4 +82,12 @@ export async function POST(req: Request) {
       cancel_url: `${origin}/`,
     });
 
-    return NextResponse.json({ url: session.url
+    return NextResponse.json({ url: session.url });
+  } catch (error: any) {
+    console.error('Stripe Checkout Error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to initialize checkout session' },
+      { status: 500 }
+    );
+  }
+}
