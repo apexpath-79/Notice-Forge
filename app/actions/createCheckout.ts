@@ -1,46 +1,93 @@
-'use server';
-
+import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+  apiVersion: '2023-10-16' as any,
+});
 
-export async function createCheckoutSession(productType: 'notice' | 'lien' | 'bundle') {
-  let unitAmount = 2900;
-  let productName = 'ApexPath — California 20-Day Notice Packet';
-  let description = 'Instant automated legal compliance document packet.';
+const PRODUCTS_MAP = {
+  bundle_all: {
+    amount: 10000,
+    name: 'ApexPath — Complete Project Protection Pass (All 4 Forms)',
+    description: 'Notice + Warning Demand + Statutory Waiver 4-Pack + County Lien Release (Save $20)',
+  },
+  notice: {
+    amount: 2900,
+    name: 'ApexPath — CA 20-Day Preliminary Notice Packet',
+    description: 'California Civil Code §§ 8200–8216 statutory compliance document',
+  },
+  warning: {
+    amount: 4900,
+    name: 'ApexPath — Mechanics Lien Warning & Demand',
+    description: '10-Day formal demand letter with statutory lien enforcement warning',
+  },
+  waivers: {
+    amount: 1900,
+    name: 'ApexPath — Statutory Lien Waiver 4-Pack',
+    description: 'California Civil Code §§ 8132–8138 conditional and unconditional waivers',
+  },
+  release: {
+    amount: 2300,
+    name: 'ApexPath — County Mechanics Lien Release Form',
+    description: 'Official county recorder title release with notary acknowledgment',
+  },
+};
 
-  if (productType === 'lien') {
-    unitAmount = 3900;
-    productName = 'ApexPath — Mechanics Lien & Recording Packet';
-  } else if (productType === 'bundle') {
-    unitAmount = 6800; // $29 + $39 combined
-    productName = 'ApexPath — Complete Contractor Protection Bundle (Notice + Lien)';
-    description = 'Includes both the 20-Day Notice Packet and the Mechanics Lien & Recording Packet.';
-  }
-
+export async function POST(req: Request) {
   try {
+    const body = await req.json();
+
+    const tierKey = (body.tier as keyof typeof PRODUCTS_MAP) || 'bundle_all';
+    const itemConfig = PRODUCTS_MAP[tierKey] || PRODUCTS_MAP.bundle_all;
+
+    const origin =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      req.headers.get('origin') ||
+      'https://notice-forge-rsv9.vercel.app';
+
     const session = await stripe.checkout.sessions.create({
+      allow_promotion_codes: true,
+      mode: 'payment',
       line_items: [
         {
           price_data: {
             currency: 'usd',
+            unit_amount: itemConfig.amount,
             product_data: {
-              name: productName,
-              description: description,
+              name: itemConfig.name,
+              description: itemConfig.description,
             },
-            unit_amount: unitAmount,
           },
           quantity: 1,
         },
       ],
-      mode: 'payment',
-      success_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/?success=true&product=${productType}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/?canceled=true`,
+      metadata: {
+        tier: tierKey,
+        claimantName: body.claimantName || '',
+        claimantEmail: body.claimantEmail || '',
+        claimantPhone: body.claimantPhone || '',
+        claimantAddress: body.claimantAddress || '',
+        directContractorName: body.directContractorName || '',
+        directContractorAddress: body.directContractorAddress || '',
+        ownerName: body.ownerName || '',
+        ownerAddress: body.ownerAddress || '',
+        constructionLenderName: body.constructionLenderName || '',
+        constructionLenderAddress: body.constructionLenderAddress || '',
+        jobAddress: body.jobAddress || '',
+        workDescription: body.workDescription || '',
+        estimatedAmount: body.estimatedAmount || '',
+      },
+      customer_email: body.claimantEmail || undefined,
+      success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/`,
     });
 
-    return { url: session.url };
+    return NextResponse.json({ url: session.url });
   } catch (error: any) {
-    console.error('Stripe Checkout Error:', error.message || error);
-    throw new Error(`Stripe Error: ${error.message || 'Failed to create checkout session.'}`);
+    console.error('Stripe Checkout Error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to initialize checkout session' },
+      { status: 500 }
+    );
   }
 }
