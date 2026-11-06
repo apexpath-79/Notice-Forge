@@ -3,8 +3,6 @@ import Stripe from 'stripe';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { Resend } from 'resend';
 
-
-
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: '2023-10-16' as any,
 });
@@ -44,13 +42,8 @@ export async function POST(req: Request) {
     const session = event.data.object as Stripe.Checkout.Session;
     const meta = (session.metadata as Record<string, string>) || {};
 
-    // Check all potential recipient sources, falling back to admin email
-    const recipient =
-      meta.claimantEmail ||
-      meta.email ||
-      session.customer_details?.email ||
-      session.customer_email ||
-      'gregorystewart1779@gmail.com';
+    // In Resend sandbox mode, all deliveries must go to the account owner email
+    const recipient = 'apexpath.nodes@gmail.com';
 
     console.log('Resolved email recipient:', recipient);
     console.log('Session metadata received:', JSON.stringify(meta));
@@ -126,7 +119,7 @@ export async function POST(req: Request) {
 
       drawSection('1. Claimant (Direct Contractor / Subcontractor)', [
         ['Company Name', meta.claimantName || 'ApexPath Client'],
-        ['Email Address', recipient],
+        ['Email Address', meta.claimantEmail || recipient],
         ['Phone Number', meta.claimantPhone || 'N/A'],
         ['Mailing Address', meta.claimantAddress || 'N/A'],
       ]);
